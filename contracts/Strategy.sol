@@ -43,6 +43,10 @@ interface IyveCRV {
     function depositAll() external;
 }
 
+interface IBaseFee {
+    function isCurrentBaseFeeAcceptable() external view returns (bool);
+}
+
 contract Strategy is BaseStrategy {
     using SafeERC20 for IERC20;
     using Address for address;
@@ -130,6 +134,27 @@ contract Strategy is BaseStrategy {
         }
     }
 
+    function harvestTrigger(uint256 callCostinEth)
+        public
+        view
+        override
+        returns (bool)
+    {
+        // harvest if we have a profit to claim at our upper limit without considering gas price
+        uint256 debt = vault.strategies(address(this)).totalDebt;
+        uint256 assets = estimatedTotalAssets();
+        if (assets <= debt){
+            return false;
+        }
+
+        // check if the base fee gas price is higher than we allow. if it is, block harvests.
+        if (!isBaseFeeAcceptable()) {
+            return false;
+        }
+
+        return super.harvestTrigger(ethToWant(callCostinEth));
+    }
+
     function ethToWant(uint256 _amtInWei)
         public
         view
@@ -142,6 +167,12 @@ contract Strategy is BaseStrategy {
         path[0] = address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2); // WETH
         path[1] = address(0x9d409a0A012CFbA9B15F6D4B36Ac57A46966Ab9a); // yvBOOST
         return sushiRouter.getAmountsOut(_amtInWei, path)[1];
+    }
+
+    function isBaseFeeAcceptable() internal view returns (bool) {
+        return
+            IBaseFee(0xb5e1CAcB567d98faaDB60a1fD4820720141f064F)
+                .isCurrentBaseFeeAcceptable();
     }
 
     function balanceOf3crv() public view returns (uint256) {
