@@ -1,6 +1,11 @@
 import brownie
 
-def test_sweep(gov, vault, strategy, token, amount, weth, weth_amount):
+def test_sweep(Strategy, live_strat, strategist, ymechs_safe, gov, vault, strategy, trade_factory, token, amount, weth, weth_amount):
+    new_strategy = strategist.deploy(Strategy, vault)
+    vault.migrateStrategy(live_strat, new_strategy, {"from":gov})
+    trade_factory.grantRole(trade_factory.STRATEGY(), new_strategy.address, {"from": ymechs_safe, "gas_price": "0 gwei"})
+    new_strategy.setTradeFactory(trade_factory.address, {"from": gov})
+    strategy = new_strategy
     # Strategy want token doesn't work
     token.transfer(strategy, amount, {"from": gov})
     assert token.address == strategy.want()

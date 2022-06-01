@@ -52,11 +52,13 @@ contract Strategy is BaseStrategy {
     using Address for address;
     using SafeMath for uint256;
 
-    address internal tradeFactory;
-    address internal proxy = 0xA420A63BbEFfbda3B147d0585F1852C358e2C152;
+    address public tradeFactory;
+    address public proxy = 0xA420A63BbEFfbda3B147d0585F1852C358e2C152;
     IERC20 internal constant crv3 = IERC20(0x6c3F90f043a72FA612cbac8115EE7e52BDe6E490);
+    bool public shouldClaim = true;
 
     constructor(address _vault) BaseStrategy(_vault) public {
+        healthCheck = address(0xDDCea799fF1699e98EDF118e0629A974Df7DF012);
     }
 
     function name() external view override returns (string memory) {
@@ -81,8 +83,7 @@ contract Strategy is BaseStrategy {
             (_debtPayment, _loss) = liquidatePosition(_debtOutstanding);
         }
 
-        uint256 _claimable = getClaimable3Crv();
-        if (_claimable > 0) {
+        if (shouldClaim && getClaimable3Crv() > 0) {
             IyveCRV(address(want)).claim();
         }
 
@@ -112,14 +113,6 @@ contract Strategy is BaseStrategy {
         } else {
             _liquidatedAmount = _amountNeeded;
         }
-    }
-
-    function liquidateAllPositions()
-        internal
-        override
-        returns (uint256 _amountFreed)
-    {
-        (_amountFreed, ) = liquidatePosition(estimatedTotalAssets());
     }
 
     function prepareMigration(address _newStrategy) internal override {
@@ -159,7 +152,6 @@ contract Strategy is BaseStrategy {
         public
         view
         virtual
-        override
         returns (uint256)
     {
         ISwap sushiRouter = ISwap(0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F);
@@ -193,6 +185,10 @@ contract Strategy is BaseStrategy {
         proxy = _proxy;
     }
 
+    function toggleShouldClaim() external onlyKeepers {
+        shouldClaim = !shouldClaim;
+    }
+
     // internal helpers
     function protectedTokens()
         internal
@@ -215,7 +211,7 @@ contract Strategy is BaseStrategy {
         tradeFactory = _tradeFactory;
     }
 
-    function removeTradeFactoryPermissions() external onlyEmergencyAuthorized {
+    function removeTradeFactoryPermissions() external onlyVaultManagers {
         _removeTradeFactoryPermissions();
 
     }

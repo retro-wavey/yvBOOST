@@ -1,11 +1,16 @@
 import pytest
 from brownie import config
-from brownie import Contract
+from brownie import Contract, interface
 
+@pytest.fixture(autouse=True)
+def isolation(fn_isolation):
+    pass
 
 @pytest.fixture
 def gov(accounts):
     yield accounts.at("0xFEB4acf3df3cDEA7399794D0869ef76A6EfAff52", force=True)
+    #yield accounts.at("0x6AFB7c9a6E8F34a3E0eC6b734942a5589A84F44C", force=True)
+
 
 @pytest.fixture
 def user(accounts):
@@ -23,17 +28,17 @@ def guardian(accounts):
 
 @pytest.fixture
 def management(accounts):
-    yield accounts[3]
+    yield accounts.at("0x16388463d60FFE0661Cf7F1f31a7D658aC790ff7", force=True)
 
 
 @pytest.fixture
 def strategist(accounts):
-    yield accounts[4]
+    yield accounts.at("0x6AFB7c9a6E8F34a3E0eC6b734942a5589A84F44C", force=True)
 
 
 @pytest.fixture
 def keeper(accounts):
-    yield accounts[5]
+    yield accounts.at("0x13dAda6157Fee283723c0254F43FF1FdADe4EEd6", force=True)
 
 
 @pytest.fixture
@@ -57,28 +62,65 @@ def amount(accounts, token, gov):
     amount = 10_000 * 10 ** token.decimals()
     # In order to get some funds for the token you are about to use,
     # it impersonate an exchange address to use it's funds.
-    reserve = accounts.at("0x10B47177E92Ef9D5C6059055d92DdF6290848991", force=True)
-    token.transfer(accounts[0], amount, {"from": reserve})
+    reserve = accounts.at("0x1b9524b0F0b9F2e16b5F9e4baD331e01c2267981", force=True)
+    token.transfer(accounts[0], amount*2, {"from": reserve})
     token.transfer(gov, amount, {"from": reserve})
     yield amount
 
 
 @pytest.fixture
 def vault(pm, gov, rewards, guardian, management, token):
-    #yield Contract("0x9d409a0A012CFbA9B15F6D4B36Ac57A46966Ab9a")
-    Vault = pm(config["dependencies"][0]).Vault
-    vault = guardian.deploy(Vault)
-    vault.initialize(token, gov, rewards, "", "", guardian)
-    vault.setDepositLimit(2 ** 256 - 1, {"from": gov})
-    vault.setManagement(management, {"from": gov})
-    yield vault
+    yield Contract('0x9d409a0A012CFbA9B15F6D4B36Ac57A46966Ab9a')
 
 @pytest.fixture
-def strategy(strategist, keeper, vault, Strategy, gov):
-    strategy = strategist.deploy(Strategy, vault)
-    strategy.setKeeper(keeper)
-    vault.addStrategy(strategy, 10_000, 0, 2 ** 256 - 1, 1_000, {"from": gov})
-    yield strategy
+def eth_whale(accounts):
+    yield accounts.at("0x53d284357ec70cE289D6D64134DfAc8E511c8a3D", force=True)
+
+
+@pytest.fixture
+def trade_factory():
+    yield Contract("0x99d8679bE15011dEAD893EB4F5df474a4e6a8b29")
+
+@pytest.fixture
+def ymechs_safe():
+    yield Contract("0x2C01B4AD51a67E2d8F02208F54dF9aC4c0B778B6")
+
+
+@pytest.fixture
+def sushi_swapper(trade_factory, ymechs_safe):
+    yield Contract("0x55dcee9332848AFcF660CE6a2116D83Dd7a71B60")
+
+
+@pytest.fixture
+def live_strat():
+    live_strat = Contract('0xd7240B32d24B814fE52946cD44d94a2e3532E63d')
+    yield live_strat
+
+@pytest.fixture
+def strategy(strategist, live_strat, keeper, vault, Strategy, gov, token, crv3, usdc,
+    trade_factory, ymechs_safe):
+    # live_strat.setDoHealthCheck(False, {"from": gov})
+    # live_strat.harvest({"from":gov})
+    # live_balance = token.balanceOf(live_strat)
+    # live_balance_3crv = crv3.balanceOf(live_strat)
+    # live_balance_usdc = crv3.balanceOf(live_strat)
+    # new_strategy = strategist.deploy(Strategy, vault)
+    # vault.migrateStrategy(live_strat, new_strategy, {"from":gov})
+    # print("MIGRATED", live_strat, new_strategy)
+
+    # assert token.balanceOf(live_strat) == 0
+    # assert crv3.balanceOf(live_strat) == 0
+    # assert usdc.balanceOf(live_strat) == 0
+    # assert token.balanceOf(new_strategy) == live_balance
+    # assert crv3.balanceOf(new_strategy) == live_balance_3crv
+    # assert usdc.balanceOf(new_strategy) == live_balance_usdc
+    # new_strategy.setKeeper(keeper, {"from":gov})
+    # # TODO: Check if this is the right things to do. The new strategy liquidates more funds compared to the old strategy.
+    # # Possible bug?
+    # new_strategy.harvest({"from":gov})
+    # yield new_strategy
+    yield live_strat
+
 
 @pytest.fixture
 def crv3():
@@ -103,7 +145,7 @@ def yveCrvContract():
 @pytest.fixture
 def proxy(strategy, gov):
     p = Contract("0x9a165622a744C20E3B2CB443AeD98110a33a231b")
-    p.approveStrategy(strategy.address, strategy.address, {"from":gov}) # Self address as gauge
+    #p.approveStrategy(strategy.address, strategy.address, {"from":gov}) # Self address as gauge
     yield p
 
 
@@ -116,6 +158,9 @@ def yveCrv(token):
 def whale_eth(accounts):
     yield accounts.at("0x73BCEb1Cd57C711feaC4224D062b0F6ff338501e", force=True)
 
+@pytest.fixture
+def whale_yvecrv(accounts):
+    yield accounts.at("0x10B47177E92Ef9D5C6059055d92DdF6290848991", force=True)
 
 @pytest.fixture
 def whale_3crv(accounts):
@@ -128,13 +173,16 @@ def sushiswap_crv(accounts):
 
 
 @pytest.fixture
-def sushiswap(accounts):
+def sushiswap(Contract):
     yield Contract("0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F")
 
 @pytest.fixture
 def not_banteg(accounts):
-    yield accounts.at("0x0035Fc5208eF989c28d47e552E92b0C507D2B318", force=True) # Definitely not banteg
+    yield accounts.at("0x0035Fc5208eF989c28d47e552E92b0C507D2B318", force=True)
 
+@pytest.fixture
+def klim(accounts):
+    yield accounts.at("0x279a7DBFaE376427FFac52fcb0883147D42165FF", force=True) # airdropper
 
 @pytest.fixture
 def weth_amount(accounts, weth, gov):
@@ -144,3 +192,19 @@ def weth_amount(accounts, weth, gov):
     reserve = accounts.at("0x2F0b23f53734252Bda2277357e97e1517d6B042A", force=True)
     weth.transfer(gov, amount, {"from": reserve})
     yield amount
+
+@pytest.fixture(scope="session")
+def RELATIVE_APPROX():
+    yield 1e-5
+
+@pytest.fixture(scope="module")
+def multicall_swapper(interface):
+    yield interface.MultiCallOptimizedSwapper(
+        "0xB2F65F254Ab636C96fb785cc9B4485cbeD39CDAA"
+    )
+
+@pytest.fixture(scope="module")
+def curvefi_3crv_pool(interface):
+    yield interface.CurveFiPool(
+        "0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7"
+    )
