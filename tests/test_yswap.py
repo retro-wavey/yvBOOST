@@ -160,6 +160,7 @@ def test_yswap(
     # harvest
     chain.sleep(1)
 
+    strategy.removeTradeFactoryPermissions({'from':gov})
     with brownie.reverts("!tf"):
         strategy.harvest()
 

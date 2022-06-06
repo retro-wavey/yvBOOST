@@ -58,7 +58,8 @@ contract Strategy is BaseStrategy {
     bool public shouldClaim = true;
 
     constructor(address _vault) BaseStrategy(_vault) public {
-        healthCheck = address(0xDDCea799fF1699e98EDF118e0629A974Df7DF012);
+        healthCheck = 0xDDCea799fF1699e98EDF118e0629A974Df7DF012;
+        tradeFactory = 0x99d8679bE15011dEAD893EB4F5df474a4e6a8b29;
     }
 
     function name() external view override returns (string memory) {
